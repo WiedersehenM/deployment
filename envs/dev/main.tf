@@ -1,17 +1,21 @@
 locals {
-  base_domain = "gitmega.dev"
-  region      = "us-west-2"
+  mono_host          = "git.${var.base_domain}"
+  ui_host            = "app.${var.base_domain}"
+  orion_host         = "orion.${var.base_domain}"
+  campsite_host      = "api.${var.base_domain}"
+  campsite_auth_host = "auth.${var.base_domain}"
 }
 
 provider "aws" {
-  region = local.region
+  region = var.region
 }
 
 module "vpc" {
   source              = "../../modules/vpc"
   vpc_cidr            = "10.0.0.0/16"
-  region              = local.region
+  region              = var.region
   public_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+  name                = "mega-vpc"
 }
 
 module "sg" {
@@ -21,7 +25,7 @@ module "sg" {
 
 module "efs" {
   source     = "../../modules/efs"
-  name       = "mono-efs"
+  name       = "${var.app_suffix}-mono-efs"
   vpc_id     = module.vpc.vpc_id
   vpc_cidr   = "10.0.0.0/16"
   subnet_ids = module.vpc.public_subnet_ids
@@ -30,12 +34,12 @@ module "efs" {
 
 module "acm" {
   source      = "../../modules/acm"
-  domain_name = "*.${local.base_domain}"
+  domain_name = "*.${var.base_domain}"
 }
 
 module "alb" {
   source              = "../../modules/alb"
-  name                = "mega-alb"
+  name                = "${var.app_suffix}-mega-alb"
   vpc_id              = module.vpc.vpc_id
   subnet_ids          = module.vpc.public_subnet_ids
   acm_certificate_arn = module.acm.certificate_arn
@@ -71,19 +75,24 @@ module "alb" {
 
 
 module "mono-engine" {
-  source             = "../../modules/ecs"
-  region             = local.region
-  cluster_name       = "mega-app"
-  task_family        = "mono-engine-task"
-  container_name     = "app"
-  container_image    = "public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release"
-  container_port     = 8000
-  service_name       = "mono-engine"
-  cpu                = "256"
-  memory             = "512"
-  subnet_ids         = module.vpc.public_subnet_ids
+  source          = "../../modules/ecs"
+  region          = var.region
+  cluster_name    = "${var.app_suffix}-mega-app"
+  task_family     = "${var.app_suffix}-mono-engine"
+  container_name  = "app"
+  container_image = "public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release"
+  container_port  = 8000
+  service_name    = "mono-engine"
+  cpu             = "512"
+  memory          = "1024"
+  subnet_ids      = module.vpc.public_subnet_ids
+
   security_group_ids = [module.sg.sg_id]
   environment = [
+    {
+      "name" : "MEGA_ALLOWED_CORS_ORIGINS",
+      "value" : "http://local.${var.base_domain}, https://${local.ui_host}, http://app.gitmono.test"
+    },
     {
       "name" : "MEGA_AUTHENTICATION__ENABLE_HTTP_PUSH",
       "value" : "true"
@@ -102,11 +111,43 @@ module "mono-engine" {
     },
     {
       "name" : "MEGA_DATABASE__DB_URL",
-      "value" : "postgres://${var.db_username}:${var.db_password}@${module.rds_pg.db_endpoint}/mono?sslmode=require"
+      "value" : "postgres://${var.db_username}:${var.db_password}@${module.rds_pg.db_endpoint}/${var.db_schema}?sslmode=require"
+    },
+    {
+      "name" : "MEGA_LFS__STORAGE_TYPE",
+      "value" : "s3"
     },
     {
       "name" : "MEGA_LOG__LEVEL",
       "value" : "info"
+    },
+    {
+      "name" : "MEGA_MONOREPO__STORAGE_TYPE",
+      "value" : "s3"
+    },
+    {
+      "name" : "MEGA_REDIS__URL",
+      "value" : "rediss://${module.valkey.endpoint[0].address}:${module.valkey.endpoint[0].port}"
+    },
+    {
+      "name" : "MEGA_S3__ACCESS_KEY_ID",
+      "value" : "${var.s3_key}"
+    },
+    {
+      "name" : "MEGA_S3__BUCKET",
+      "value" : "${var.s3_bucket}"
+    },
+    {
+      "name" : "MEGA_S3__ENDPOINT_URL",
+      "value" : ""
+    },
+    {
+      "name" : "MEGA_S3__REGION",
+      "value" : "${var.region}"
+    },
+    {
+      "name" : "MEGA_S3__SECRET_ACCESS_KEY",
+      "value" : "${var.s3_secret_key}"
     },
   ]
 
@@ -114,7 +155,7 @@ module "mono-engine" {
     target_group_arn = module.alb.target_group_arns["mono_engine"]
     container_name   = "app"
     container_port   = 8000
-    host_headers     = ["git.${local.base_domain}"]
+    host_headers     = ["${local.mono_host}"]
     priority         = 100
   }]
   alb_listener_arn = module.alb.https_listener_arn
@@ -139,41 +180,43 @@ module "mono-engine" {
 }
 
 module "mega-ui-app" {
-  source             = "../../modules/ecs"
-  region             = local.region
-  cluster_name       = "mega-app"
-  task_family        = "mega-ui-task"
-  container_name     = "app"
-  container_image    = "public.ecr.aws/m8q5m4u3/mega:mega-ui-staging-0.1.0-pre-release"
-  container_port     = 3000
-  service_name       = "mega-ui-service"
-  cpu                = "512"
-  memory             = "1024"
-  subnet_ids         = module.vpc.public_subnet_ids
+  source          = "../../modules/ecs"
+  region          = var.region
+  cluster_name    = "${var.app_suffix}-mega-app"
+  task_family     = "${var.app_suffix}-mega-ui"
+  container_name  = "app"
+  container_image = "public.ecr.aws/m8q5m4u3/mega:mega-ui-${var.ui_env}-0.1.0-pre-release"
+  container_port  = 3000
+  service_name    = "mega-ui-service"
+  cpu             = "512"
+  memory          = "1024"
+  subnet_ids      = module.vpc.public_subnet_ids
+
   security_group_ids = [module.sg.sg_id]
   environment        = []
   load_balancers = [{
     target_group_arn = module.alb.target_group_arns["mega_ui"]
     container_name   = "app"
     container_port   = 3000
-    host_headers     = ["app.${local.base_domain}"]
+    host_headers     = ["${local.ui_host}"]
     priority         = 200
   }]
   alb_listener_arn = module.alb.https_listener_arn
 }
 
 module "mega-web-sync-app" {
-  source             = "../../modules/ecs"
-  region             = local.region
-  cluster_name       = "mega-app"
-  task_family        = "mega-web-sync-task"
-  container_name     = "app"
-  container_image    = "public.ecr.aws/m8q5m4u3/mega:mega-web-sync-server-0.1.0-pre-release"
-  container_port     = 9000
-  service_name       = "mega-web-sync-service"
-  cpu                = "512"
-  memory             = "1024"
-  subnet_ids         = module.vpc.public_subnet_ids
+  source          = "../../modules/ecs"
+  region          = var.region
+  cluster_name    = "${var.app_suffix}-mega-app"
+  task_family     = "${var.app_suffix}-mega-web-sync"
+  container_name  = "app"
+  container_image = "public.ecr.aws/m8q5m4u3/mega:mega-web-sync-server-0.1.0-pre-release"
+  container_port  = 9000
+  service_name    = "mega-web-sync-service"
+  cpu             = "256"
+  memory          = "512"
+  subnet_ids      = module.vpc.public_subnet_ids
+
   security_group_ids = [module.sg.sg_id]
   environment = [
     {
@@ -182,14 +225,14 @@ module "mega-web-sync-app" {
     },
     {
       "name" : "NEXT_PUBLIC_SYNC_URL",
-      "value" : "ws://sync.${local.base_domain}"
+      "value" : "ws://sync.${var.base_domain}"
     },
   ]
   load_balancers = [{
     target_group_arn = module.alb.target_group_arns["sync_server"]
     container_name   = "app"
     container_port   = 9000
-    host_headers     = ["sync.${local.base_domain}"]
+    host_headers     = ["sync.${var.base_domain}"]
     priority         = 300
   }]
   alb_listener_arn = module.alb.https_listener_arn
@@ -197,22 +240,39 @@ module "mega-web-sync-app" {
 
 
 module "orion-server-app" {
-  source             = "../../modules/ecs"
-  region             = local.region
-  cluster_name       = "mega-app"
-  task_family        = "orion-server-task"
-  container_name     = "app"
-  container_image    = "public.ecr.aws/m8q5m4u3/mega:orion-server-0.1.0-pre-release"
-  container_port     = 8004
-  service_name       = "orion-server-service"
-  cpu                = "512"
-  memory             = "1024"
-  subnet_ids         = module.vpc.public_subnet_ids
+  source          = "../../modules/ecs"
+  region          = var.region
+  cluster_name    = "${var.app_suffix}-mega-app"
+  task_family     = "${var.app_suffix}-orion-server"
+  container_name  = "app"
+  container_image = "public.ecr.aws/m8q5m4u3/mega:orion-server-0.1.0-pre-release"
+  container_port  = 8004
+  service_name    = "orion-server-service"
+  cpu             = "256"
+  memory          = "512"
+  subnet_ids      = module.vpc.public_subnet_ids
+
   security_group_ids = [module.sg.sg_id]
   environment = [
     {
-      "name" : "MONOBASE_URL",
-      "value" : "https://git.${local.base_domain}"
+      "name" : "ALLOWED_CORS_ORIGINS",
+      "value" : "http://local.${var.base_domain}, https://${local.ui_host}, http://app.gitmono.test"
+    },
+    {
+      "name" : "AWS_ACCESS_KEY_ID",
+      "value" : "${var.s3_key}"
+    },
+    {
+      "name" : "AWS_DEFAULT_REGION",
+      "value" : "${var.region}"
+    },
+    {
+      "name" : "AWS_SECRET_ACCESS_KEY",
+      "value" : "${var.s3_secret_key}"
+    },
+    {
+      "name" : "BUCKET_NAME",
+      "value" : "${var.s3_bucket}"
     },
     {
       "name" : "BUILD_LOG_DIR",
@@ -220,22 +280,30 @@ module "orion-server-app" {
     },
     {
       "name" : "DATABASE_URL",
-      "value" : "postgres://${var.db_username}:${var.db_password}@${module.rds_pg.db_endpoint}/mono"
+      "value" : "postgres://${var.db_username}:${var.db_password}@${module.rds_pg.db_endpoint}/${var.db_schema}"
+    },
+    {
+      "name" : "LOG_STREAM_BUFFER",
+      "value" : "4096"
+    },
+    {
+      "name" : "LOGGER_STORAGE_TYPE",
+      "value" : "s3"
+    },
+    {
+      "name" : "MONOBASE_URL",
+      "value" : "https://${local.mono_host}"
     },
     {
       "name" : "PORT",
       "value" : "8004"
     },
-    {
-      "name" : "ALLOWED_CORS_ORIGINS",
-      "value" : "http://local.${local.base_domain}, https://app.${local.base_domain}, http://app.gitmono.test"
-    }
   ]
   load_balancers = [{
     target_group_arn = module.alb.target_group_arns["orion_server"]
     container_name   = "app"
     container_port   = 8004
-    host_headers     = ["orion.${local.base_domain}"]
+    host_headers     = ["${local.orion_host}"]
     priority         = 400
   }]
   alb_listener_arn = module.alb.https_listener_arn
@@ -243,22 +311,23 @@ module "orion-server-app" {
 
 
 module "campsite-api-app" {
-  source             = "../../modules/ecs"
-  region             = local.region
-  cluster_name       = "mega-app"
-  task_family        = "campsite-api-task"
-  container_name     = "app"
-  container_image    = "public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release"
-  container_port     = 8080
-  service_name       = "campsite-api-service"
-  cpu                = "1024"
-  memory             = "2048"
-  subnet_ids         = module.vpc.public_subnet_ids
+  source          = "../../modules/ecs"
+  region          = var.region
+  cluster_name    = "${var.app_suffix}-mega-app"
+  task_family     = "${var.app_suffix}-campsite-api"
+  container_name  = "app"
+  container_image = "public.ecr.aws/m8q5m4u3/mega:campsite-0.1.0-pre-release"
+  container_port  = 8080
+  service_name    = "campsite-api-service"
+  cpu             = "512"
+  memory          = "1024"
+  subnet_ids      = module.vpc.public_subnet_ids
+
   security_group_ids = [module.sg.sg_id]
   environment = [
     {
       "name" : "DEV_APP_URL",
-      "value" : "http://app.${local.base_domain}"
+      "value" : "http://${local.ui_host}"
     },
     {
       "name" : "PORT",
@@ -266,11 +335,11 @@ module "campsite-api-app" {
     },
     {
       "name" : "RAILS_ENV",
-      "value" : "staging"
+      "value" : "${var.rails_env}"
     },
     {
       "name" : "RAILS_MASTER_KEY",
-      "value" : "694e02a56ba2e954fe1200d804e916ac"
+      "value" : "${var.rails_master_key}"
     },
     {
       "name" : "SERVER_COMMAND",
@@ -281,7 +350,7 @@ module "campsite-api-app" {
     target_group_arn = module.alb.target_group_arns["campsite_api"]
     container_name   = "app"
     container_port   = 8080
-    host_headers     = ["api.${local.base_domain}", "auth.${local.base_domain}"]
+    host_headers     = ["${local.campsite_host}", "${local.campsite_auth_host}"]
     priority         = 500
   }]
   alb_listener_arn = module.alb.https_listener_arn
@@ -293,7 +362,7 @@ module "rds_pg" {
   source              = "../../modules/rds"
   engine              = "postgres"
   engine_version      = "17"
-  identifier          = "mega-app-postgres"
+  identifier          = "mega-postgres-tf"
   instance_class      = "db.t4g.micro"
   allocated_storage   = 20
   storage_type        = "gp2"
@@ -322,6 +391,13 @@ module "rds_pg" {
 #   security_group_ids = [module.sg.sg_id]
 # }
 
+module "valkey" {
+  source             = "../../modules/valkey"
+  name               = "mega-valkey-tf"
+  subnet_ids         = module.vpc.public_subnet_ids
+  security_group_ids = [module.sg.sg_id]
+}
+
 
 output "pg_endpoint" {
   value = module.rds_pg.db_endpoint
@@ -329,4 +405,8 @@ output "pg_endpoint" {
 
 output "alb_dns_name" {
   value = module.alb.alb_dns_name
+}
+
+output "valkey_endpoint" {
+  value = module.valkey.endpoint
 }
