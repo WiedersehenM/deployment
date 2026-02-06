@@ -7,7 +7,7 @@ data "aws_iam_role" "ecs_task_execution_role" {
 }
 
 resource "aws_cloudwatch_log_group" "ecs" {
-  name              = "/ecs/${var.service_name}"
+  name              = "/ecs/${var.service_name}-tg"
   retention_in_days = 7
 }
 

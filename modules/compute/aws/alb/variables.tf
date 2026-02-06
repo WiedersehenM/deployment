@@ -43,3 +43,17 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+variable "existing_alb_arn" {
+  type    = string
+  default = ""
+}
+
+variable "existing_https_listener_arn" {
+  type    = string
+  default = ""
+}
+
+variable "create_alb_sg" {
+  type    = bool
+  default = true
+}

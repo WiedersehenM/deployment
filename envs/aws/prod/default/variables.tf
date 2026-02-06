@@ -16,7 +16,7 @@ variable "db_password" {
   sensitive = true
 }
 variable "db_schema" {
-  type = string
+  type      = string
 }
 
 variable "s3_key" {
@@ -48,36 +48,4 @@ variable "ui_env" {
 
 variable "app_suffix" {
   type = string
-}
-
-variable "redis_endpoint" {
-  type      = string
-  sensitive = true
-}
-
-
-variable "vpc_id" {
-  type      = string
-}
-
-
-variable "vpc_cidr" {
-  type      = string
-}
-
-
-variable "public_subnet_ids" {
-  description = "IDs of all public subnets"
-  type        = list(string)
-}
-
-
-variable "existing_alb_arn" {
-  type    = string
-  default = ""
-}
-
-variable "existing_https_listener_arn" {
-  type    = string
-  default = ""
 }
