@@ -8,6 +8,29 @@ locals {
 
   enable_private_networking = var.enable_private_networking
   vpc_connector_name        = var.vpc_connector_name != "" ? var.vpc_connector_name : "${var.name_prefix}-cr-conn"
+
+  enable_lb = var.enable_lb
+
+  lb_routing_plan = {
+    domain = var.lb_domain
+    default_backend = (var.ui_service_name != "" ? "ui" : "backend")
+    backends = {
+      backend = {
+        cloud_run_service = var.app_service_name
+        region            = var.region
+      }
+      ui = {
+        cloud_run_service = var.ui_service_name
+        region            = var.region
+      }
+    }
+    path_routes = [
+      for p in var.lb_api_path_prefixes : {
+        path_prefix = p
+        backend     = "backend"
+      }
+    ]
+  }
 }
 
 # GKE related modules disabled/removed, Cloud Run introduced for app service
@@ -162,6 +185,19 @@ module "ui_cloud_run" {
   vpc_egress     = var.cloud_run_vpc_egress
 }
 
+module "lb_backends" {
+  count  = var.enable_lb ? 1 : 0
+  source = "../../../modules/gcp/load_balancer"
+
+  project_id            = var.project_id
+  region                = var.region
+  name_prefix            = var.name_prefix
+  backend_service_name   = var.app_service_name
+  ui_service_name        = var.ui_service_name
+  lb_domain              = var.lb_domain
+  api_path_prefixes      = var.lb_api_path_prefixes
+}
+
 # Outputs adjusted (removed GKE related ones)
 
 output "artifact_registry_repo" {
@@ -208,6 +244,16 @@ output "ui_cloud_run_url" {
   value = local.enable_apps && var.ui_service_name != "" ? module.ui_cloud_run[0].url : null
 }
 
+output "lb_backend_backend_service" {
+  description = "Backend service self_link for backend (mono) in the external HTTPS LB"
+  value       = var.enable_lb ? module.lb_backends[0].backend_backend_service_self_link : null
+}
+
+output "lb_ui_backend_service" {
+  description = "Backend service self_link for UI (Next.js) in the external HTTPS LB"
+  value       = var.enable_lb ? module.lb_backends[0].ui_backend_service_self_link : null
+}
+
 output "iam_service_accounts" {
   description = "Created service accounts with emails and names"
   value       = module.iam.service_accounts
@@ -226,4 +272,30 @@ output "project_id" {
 output "monitoring_logging_api_enabled" {
   description = "Whether Logging/Monitoring APIs are enabled"
   value       = module.monitoring.logging_api_enabled && module.monitoring.monitoring_api_enabled
+}
+
+# HTTPS Load Balancer & Routing Strategy (Milestone A)
+output "lb_domain" {
+  description = "The FQDN for the load balancer"
+  value       = var.enable_lb ? local.lb_routing_plan.domain : null
+}
+
+output "lb_ip" {
+  description = "The public Anycast IP address of the load balancer"
+  value       = var.enable_lb ? module.lb_backends[0].lb_ip : null
+}
+
+output "dns_authorization_record_name" {
+  description = "DNS CNAME record name for cert verification"
+  value       = var.enable_lb ? module.lb_backends[0].dns_authorization_record_name : null
+}
+
+output "dns_authorization_record_value" {
+  description = "DNS CNAME record value for cert verification"
+  value       = var.enable_lb ? module.lb_backends[0].dns_authorization_record_value : null
+}
+
+output "lb_routing_plan" {
+  description = "Detailed routing strategy for the load balancer"
+  value       = var.enable_lb ? local.lb_routing_plan : null
 }

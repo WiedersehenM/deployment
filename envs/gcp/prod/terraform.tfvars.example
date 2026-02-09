@@ -70,11 +70,25 @@ enable_redis              = true
 enable_filestore          = true
 enable_apps               = true
 
+# Networking mode
+# Production recommendation: use private networking (VPC + VPC Connector) and disable public IP.
+# Testing option: switch to public IP access (NOT recommended for production).
+
 # Private networking for Cloud SQL / Redis (VPC + VPC Connector)
 enable_private_networking = true
 vpc_connector_name        = "mega-prod-cr-conn"
 # vpc_connector_cidr       = "10.43.0.0/28"  # optional: leave null for auto
-cloud_run_vpc_egress       = "private-ranges-only"
+cloud_run_vpc_egress      = "private-ranges-only"
+
+# Testing: allow connecting to Cloud SQL via public IP (NOT recommended for production).
+# Note: Set enable_private_networking above to false if you need to enable public access for testing.
+# cloud_sql_enable_private_service_connection = false
+# cloud_sql_enable_public_ip                  = true
+
+# HTTPS Load Balancer & Routing Strategy (Milestone A)
+enable_lb            = true
+lb_domain            = "buck2hub.com"
+lb_api_path_prefixes = ["/api/v1", "/info/lfs"]
 
 enable_logging            = true
 enable_monitoring         = true

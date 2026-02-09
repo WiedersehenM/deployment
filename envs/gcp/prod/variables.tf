@@ -413,6 +413,25 @@ variable "ui_allow_unauth" {
   default = true
 }
 
+# HTTPS Load Balancer & Routing Strategy (Milestone A)
+variable "enable_lb" {
+  type        = bool
+  description = "Whether to enable Global HTTPS Load Balancer"
+  default     = false
+}
+
+variable "lb_domain" {
+  type        = string
+  description = "The FQDN for the load balancer (e.g., buck2hub.com)"
+  default     = "buck2hub.com"
+}
+
+variable "lb_api_path_prefixes" {
+  type        = list(string)
+  description = "URL path prefixes to be routed to the backend service"
+  default     = ["/api/v1", "/info/lfs"]
+}
+
 variable "app_suffix" {
   type    = string
   default = ""
