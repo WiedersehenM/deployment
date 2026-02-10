@@ -25,11 +25,6 @@ variable "base_domain" {
   default = ""
 }
 
-variable "enable_build_env" {
-  type        = bool
-  description = "(deprecated) Was used for GKE build env. Default to false after migration to Cloud Run."
-  default     = false
-}
 
 variable "enable_gcs" {
   type    = bool
@@ -133,17 +128,6 @@ variable "cloud_run_vpc_egress" {
   default = "private-ranges-only"
 }
 
-variable "artifact_registry_location" {
-  type    = string
-  default = "us-central1"
-}
-
-variable "artifact_registry_repo" {
-  type        = string
-  description = "Artifact Registry repository name"
-  default     = "mega-prod"
-}
-
 variable "gcs_bucket" {
   type        = string
   description = "GCS bucket name"
@@ -177,13 +161,13 @@ variable "cloud_sql_database_version" {
 variable "cloud_sql_tier" {
   type        = string
   description = "Cloud SQL instance tier"
-  default     = "db-g1-small"
+  default     = "db-f1-micro"  # smallest tier for this project
 }
 
 variable "cloud_sql_disk_size" {
   type        = number
   description = "Cloud SQL disk size in GB"
-  default     = 100
+  default     = 10
 }
 
 variable "cloud_sql_disk_type" {
@@ -195,7 +179,7 @@ variable "cloud_sql_disk_type" {
 variable "cloud_sql_availability_type" {
   type        = string
   description = "Cloud SQL availability type"
-  default     = "REGIONAL"
+  default     = "ZONAL"
 }
 
 variable "cloud_sql_private_ip_prefix_length" {
@@ -221,7 +205,7 @@ variable "cloud_sql_db_name" {
 
 variable "cloud_sql_backup_enabled" {
   type    = bool
-  default = true
+  default = false
 }
 
 variable "cloud_sql_deletion_protection" {
@@ -237,12 +221,12 @@ variable "redis_instance_name" {
 
 variable "redis_tier" {
   type    = string
-  default = "STANDARD_HA"
+  default = "BASIC"
 }
 
 variable "redis_memory_size_gb" {
   type    = number
-  default = 4
+  default = 1
 }
 
 variable "redis_transit_encryption_mode" {
@@ -417,14 +401,9 @@ variable "ui_allow_unauth" {
 variable "enable_lb" {
   type        = bool
   description = "Whether to enable Global HTTPS Load Balancer"
-  default     = false
+  default     = true
 }
 
-variable "lb_domain" {
-  type        = string
-  description = "The FQDN for the load balancer (e.g., buck2hub.com)"
-  default     = "buck2hub.com"
-}
 
 variable "lb_api_path_prefixes" {
   type        = list(string)

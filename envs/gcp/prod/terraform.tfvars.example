@@ -2,46 +2,26 @@
 # Only list variables commonly customized – others keep defaults.
 
 # Required project and domain
-project_id       = "your-gcp-project-id"
-base_domain      = "mega.example.com"           # used for certificates / app config
-
-# Region / zone (optional overrides)
-# region         = "us-central1"
-# zone           = "us-central1-b"
+project_id       = "infra-20250121-20260121-0235"
+base_domain      = "buck2hub.com" 
 
 # GCS (object storage)
 gcs_bucket                = "mega-prod-storage"
-gcs_force_destroy         = false
-
-# Artifact Registry (container images)
-artifact_registry_repo    = "mega-prod"
 
 # Cloud Run backend application
 app_service_name          = "mega-backend"
-# app_image can point to ECR Public or Artifact Registry
 app_image                 = "public.ecr.aws/m8q5m4u3/mega:mono-0.1.0-pre-release"
 app_env = {
   RAILS_ENV    = "production"
   RACK_ENV     = "production"
 }
-app_cpu                   = "1"          # e.g. "2"
-app_memory                = "512Mi"      # e.g. "1Gi"
-app_min_instances         = 0
-app_max_instances         = 20
-app_allow_unauth          = true         # set false to require IAP / IAM
 
 # Cloud Run UI (Next.js SSR)
-# Leave ui_service_name empty to skip creating UI service
 ui_service_name           = "mega-ui"
 ui_image                  = "public.ecr.aws/m8q5m4u3/mega:mega-ui-staging-0.1.0-pre-release"
 ui_env_vars = {
   APP_ENV = "staging"
 }
-ui_cpu                    = "1"
-ui_memory                 = "512Mi"
-ui_min_instances          = 0
-ui_max_instances          = 10
-ui_allow_unauth           = true
 
 # Database (Cloud SQL)
 cloud_sql_instance_name   = "mega-prod-db"
@@ -49,53 +29,17 @@ cloud_sql_db_name         = "mega"
 db_username               = "mega_user"
 db_password               = "your-prod-db-password"
 
+# Testing (option 1): enable public IP while keeping private networking to avoid empty network references
+cloud_sql_enable_private_service_connection = true
+cloud_sql_enable_public_ip                  = true
+
+# VPC Connector CIDR (Required for the module to avoid 400 error)
+vpc_connector_cidr                          = "10.8.0.0/28"
+
 # Redis (Memorystore)
 redis_instance_name       = "mega-prod-redis"
-
-# Filestore (optional – set enable_filestore=false to skip)
-filestore_instance_name   = "mega-prod-fs"
-
-# Storage service keys – only if accessing external S3-compatible storage
-# storage_key             = ""
-# storage_secret_key      = ""
-# storage_bucket          = ""
+redis_tier                = "BASIC"     # no HA
+redis_memory_size_gb      = 1
 
 # Rails secrets (sensitive)
 rails_master_key          = "your-prod-rails-master-key"
-
-# Feature flags – leave true unless you explicitly want to skip resource creation
-enable_gcs                = true
-enable_cloud_sql          = true
-enable_redis              = true
-enable_filestore          = true
-enable_apps               = true
-
-# Networking mode
-# Production recommendation: use private networking (VPC + VPC Connector) and disable public IP.
-# Testing option: switch to public IP access (NOT recommended for production).
-
-# Private networking for Cloud SQL / Redis (VPC + VPC Connector)
-enable_private_networking = true
-vpc_connector_name        = "mega-prod-cr-conn"
-# vpc_connector_cidr       = "10.43.0.0/28"  # optional: leave null for auto
-cloud_run_vpc_egress      = "private-ranges-only"
-
-# Testing: allow connecting to Cloud SQL via public IP (NOT recommended for production).
-# Note: Set enable_private_networking above to false if you need to enable public access for testing.
-# cloud_sql_enable_private_service_connection = false
-# cloud_sql_enable_public_ip                  = true
-
-# HTTPS Load Balancer & Routing Strategy (Milestone A)
-enable_lb            = true
-lb_domain            = "buck2hub.com"
-lb_api_path_prefixes = ["/api/v1", "/info/lfs"]
-
-enable_logging            = true
-enable_monitoring         = true
-enable_alerts             = true
-
-# Alerting channels example
-# alert_notification_channels = ["projects/your-project/notificationChannels/1234567890"]
-
-# IAM service accounts (optional complex object) – see variables.tf for full schema
-# iam_service_accounts = {}

@@ -1,5 +1,4 @@
 locals {
-  enable_build_env = var.enable_build_env
   enable_gcs       = var.enable_gcs
   enable_cloud_sql = var.enable_cloud_sql
   enable_redis     = var.enable_redis
@@ -12,7 +11,7 @@ locals {
   enable_lb = var.enable_lb
 
   lb_routing_plan = {
-    domain = var.lb_domain
+    domain = var.base_domain
     default_backend = (var.ui_service_name != "" ? "ui" : "backend")
     backends = {
       backend = {
@@ -46,14 +45,6 @@ module "network" {
   subnet_cidr              = var.subnet_cidr
   pods_secondary_range     = var.pods_secondary_range
   services_secondary_range = var.services_secondary_range
-}
-
-module "artifact_registry" {
-  count  = local.enable_build_env ? 1 : 0
-  source = "../../../modules/gcp/artifact_registry"
-
-  location  = var.artifact_registry_location
-  repo_name = var.artifact_registry_repo
 }
 
 module "iam" {
@@ -194,15 +185,11 @@ module "lb_backends" {
   name_prefix            = var.name_prefix
   backend_service_name   = var.app_service_name
   ui_service_name        = var.ui_service_name
-  lb_domain              = var.lb_domain
+  lb_domain              = var.base_domain
   api_path_prefixes      = var.lb_api_path_prefixes
 }
 
 # Outputs adjusted (removed GKE related ones)
-
-output "artifact_registry_repo" {
-  value = local.enable_build_env ? module.artifact_registry[0].repository : null
-}
 
 output "gcs_bucket_name" {
   value = local.enable_gcs ? module.gcs[0].bucket_name : null

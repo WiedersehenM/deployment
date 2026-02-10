@@ -20,6 +20,10 @@ resource "google_vpc_access_connector" "this" {
   region        = var.region
   network       = var.network
   ip_cidr_range = var.ip_cidr_range
+
+  # Required by the API: throughput must be a multiple of 100 between 200 and 1000 Mbps.
+  min_throughput = 200
+  max_throughput = 300
 }
 
 output "id" {

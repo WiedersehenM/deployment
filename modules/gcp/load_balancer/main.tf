@@ -32,8 +32,6 @@ variable "api_path_prefixes" {
   default     = ["/api/v1", "/info/lfs"]
 }
 
-# --- 1. Serverless NEGs (Milestone B) ---
-
 resource "google_compute_region_network_endpoint_group" "backend" {
   project               = var.project_id
   region                = var.region
@@ -57,8 +55,6 @@ resource "google_compute_region_network_endpoint_group" "ui" {
   }
 }
 
-# --- 2. Backend Services (Milestone B) ---
-
 resource "google_compute_backend_service" "backend" {
   project               = var.project_id
   name                  = "${var.name_prefix}-backend-bs"
@@ -81,8 +77,6 @@ resource "google_compute_backend_service" "ui" {
     group = google_compute_region_network_endpoint_group.ui[0].id
   }
 }
-
-# --- 3. URL Map (Milestone C) ---
 
 resource "google_compute_url_map" "this" {
   project = var.project_id
@@ -109,8 +103,6 @@ resource "google_compute_url_map" "this" {
   }
 }
 
-# --- 4. Load Balancer Entry (Milestone D) ---
-
 resource "google_compute_global_address" "this" {
   project = var.project_id
   name    = "${var.name_prefix}-lb-ip"
@@ -131,8 +123,6 @@ resource "google_compute_global_forwarding_rule" "https" {
   ip_address            = google_compute_global_address.this.address
   load_balancing_scheme = "EXTERNAL_MANAGED"
 }
-
-# --- 5. Certificate Manager (Milestone E) ---
 
 resource "google_certificate_manager_dns_authorization" "this" {
   project     = var.project_id
