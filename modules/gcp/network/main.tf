@@ -6,7 +6,7 @@ locals {
   public_subnet_map  = { for idx, cidr in var.public_subnet_cidrs : idx => cidr }
   private_subnet_map = { for idx, cidr in var.private_subnet_cidrs : idx => cidr }
 
-  default_gke_node_tags = ["${var.name_prefix}-gke"]
+  default_gke_node_tags = ["${var.app_name}-gke"]
   effective_gke_node_tags = length(var.gke_node_tags) > 0 ? var.gke_node_tags : local.default_gke_node_tags
 
   health_check_port_numbers = [for p in var.health_check_ports : tonumber(p)]
@@ -27,12 +27,12 @@ resource "google_compute_subnetwork" "this" {
   network       = google_compute_network.this.id
 
   secondary_ip_range {
-    range_name    = "${var.name_prefix}-pods"
+    range_name    = "${var.app_name}-pods"
     ip_cidr_range = var.pods_secondary_range
   }
 
   secondary_ip_range {
-    range_name    = "${var.name_prefix}-services"
+    range_name    = "${var.app_name}-services"
     ip_cidr_range = var.services_secondary_range
   }
 }
@@ -59,7 +59,7 @@ resource "google_compute_subnetwork" "private" {
 resource "google_compute_router" "this" {
   count = var.create_nat && (local.use_multi_subnets ? local.has_private_subnets : true) ? 1 : 0
 
-  name    = "${var.name_prefix}-gke-router"
+  name    = "${var.app_name}-router"
   network = google_compute_network.this.id
   region  = var.region
 }
@@ -67,7 +67,7 @@ resource "google_compute_router" "this" {
 resource "google_compute_router_nat" "this" {
   count = var.create_nat && (local.use_multi_subnets ? local.has_private_subnets : true) ? 1 : 0
 
-  name                   = "${var.name_prefix}-gke-nat"
+  name                   = "${var.app_name}-nat"
   router                 = google_compute_router.this[0].name
   region                 = var.region
   nat_ip_allocate_option = "AUTO_ONLY"

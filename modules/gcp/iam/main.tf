@@ -5,7 +5,7 @@ locals {
 resource "google_service_account" "this" {
   for_each = local.service_accounts
 
-  account_id   = "${var.prefix}-${each.key}"
+  account_id   = "${var.app_name}-${each.key}"
   display_name = coalesce(try(each.value.display_name, null), each.key)
   description  = try(each.value.description, null)
 }

@@ -6,8 +6,9 @@ variable "region" {
   type = string
 }
 
-variable "name_prefix" {
-  type = string
+variable "app_name" {
+  type        = string
+  description = "The name of the application, used as a prefix for all resources"
 }
 
 variable "backend_service_name" {
@@ -35,7 +36,7 @@ variable "api_path_prefixes" {
 resource "google_compute_region_network_endpoint_group" "backend" {
   project               = var.project_id
   region                = var.region
-  name                  = "${var.name_prefix}-backend-neg"
+  name                  = "${var.app_name}-backend-neg"
   network_endpoint_type = "SERVERLESS"
 
   cloud_run {
@@ -47,7 +48,7 @@ resource "google_compute_region_network_endpoint_group" "ui" {
   count                 = var.ui_service_name != "" ? 1 : 0
   project               = var.project_id
   region                = var.region
-  name                  = "${var.name_prefix}-ui-neg"
+  name                  = "${var.app_name}-ui-neg"
   network_endpoint_type = "SERVERLESS"
 
   cloud_run {
@@ -57,7 +58,7 @@ resource "google_compute_region_network_endpoint_group" "ui" {
 
 resource "google_compute_backend_service" "backend" {
   project               = var.project_id
-  name                  = "${var.name_prefix}-backend-bs"
+  name                  = "${var.app_name}-backend-bs"
   protocol              = "HTTP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
 
@@ -69,7 +70,7 @@ resource "google_compute_backend_service" "backend" {
 resource "google_compute_backend_service" "ui" {
   count                 = var.ui_service_name != "" ? 1 : 0
   project               = var.project_id
-  name                  = "${var.name_prefix}-ui-bs"
+  name                  = "${var.app_name}-ui-bs"
   protocol              = "HTTP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
 
@@ -80,7 +81,7 @@ resource "google_compute_backend_service" "ui" {
 
 resource "google_compute_url_map" "this" {
   project = var.project_id
-  name    = "${var.name_prefix}-urlmap"
+  name    = "${var.app_name}-urlmap"
 
   default_service = var.ui_service_name != "" ? google_compute_backend_service.ui[0].self_link : google_compute_backend_service.backend.self_link
 
@@ -105,19 +106,19 @@ resource "google_compute_url_map" "this" {
 
 resource "google_compute_global_address" "this" {
   project = var.project_id
-  name    = "${var.name_prefix}-lb-ip"
+  name    = "${var.app_name}-lb-ip"
 }
 
 resource "google_compute_target_https_proxy" "this" {
   project          = var.project_id
-  name             = "${var.name_prefix}-https-proxy"
+  name             = "${var.app_name}-https-proxy"
   url_map          = google_compute_url_map.this.id
   certificate_map  = "//certificatemanager.googleapis.com/${google_certificate_manager_certificate_map.this.id}"
 }
 
 resource "google_compute_global_forwarding_rule" "https" {
   project               = var.project_id
-  name                  = "${var.name_prefix}-https-fr"
+  name                  = "${var.app_name}-https-fr"
   target                = google_compute_target_https_proxy.this.id
   port_range            = "443"
   ip_address            = google_compute_global_address.this.address
@@ -126,14 +127,14 @@ resource "google_compute_global_forwarding_rule" "https" {
 
 resource "google_certificate_manager_dns_authorization" "this" {
   project     = var.project_id
-  name        = "${var.name_prefix}-dns-auth"
+  name        = "${var.app_name}-dns-auth"
   domain      = var.lb_domain
   description = "DNS authorization for ${var.lb_domain}"
 }
 
 resource "google_certificate_manager_certificate" "this" {
   project     = var.project_id
-  name        = "${var.name_prefix}-cert"
+  name        = "${var.app_name}-cert"
   description = "Google-managed cert for ${var.lb_domain}"
   scope       = "DEFAULT"
   managed {
@@ -146,13 +147,13 @@ resource "google_certificate_manager_certificate" "this" {
 
 resource "google_certificate_manager_certificate_map" "this" {
   project     = var.project_id
-  name        = "${var.name_prefix}-cert-map"
+  name        = "${var.app_name}-cert-map"
   description = "Certificate map for ${var.lb_domain}"
 }
 
 resource "google_certificate_manager_certificate_map_entry" "this" {
   project      = var.project_id
-  name         = "${var.name_prefix}-cert-map-entry"
+  name         = "${var.app_name}-cert-map-entry"
   map          = google_certificate_manager_certificate_map.this.name
   certificates = [google_certificate_manager_certificate.this.id]
   hostname     = var.lb_domain

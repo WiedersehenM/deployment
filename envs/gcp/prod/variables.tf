@@ -1,7 +1,13 @@
-# NOTE: cleaned up variables, removed k8s/ingress legacy blocks
-
+# --- Project & App Identity ---
 variable "project_id" {
-  type = string
+  type        = string
+  description = "GCP Project ID"
+}
+
+variable "app_name" {
+  type        = string
+  description = "The name of the application, used as a prefix for all resources"
+  default     = "mega"
 }
 
 variable "region" {
@@ -15,33 +21,18 @@ variable "zone" {
   default     = ""
 }
 
-variable "name_prefix" {
-  type    = string
-  default = "mega-prod"
-}
-
 variable "base_domain" {
-  type    = string
-  default = ""
+  type        = string
+  description = "The FQDN for the application (e.g., buck2hub.com)"
+  default     = "buck2hub.com"
 }
 
+# --- Feature Flags ---
 variable "enable_build_env" {
   type        = bool
-  description = "Enable Artifact Registry build environment (repository for Cloud Run images)."
+  description = "Enable Artifact Registry build environment."
   default     = false
 }
-
-variable "artifact_registry_location" {
-  type    = string
-  default = "us-central1"
-}
-
-variable "artifact_registry_repo" {
-  type        = string
-  description = "Artifact Registry repository name"
-  default     = "mega-prod"
-}
-
 
 variable "enable_gcs" {
   type    = bool
@@ -68,47 +59,13 @@ variable "enable_apps" {
   default = true
 }
 
-variable "enable_logging" {
-  type    = bool
-  default = true
+variable "enable_lb" {
+  type        = bool
+  description = "Whether to enable Global HTTPS Load Balancer"
+  default     = true
 }
 
-variable "enable_monitoring" {
-  type    = bool
-  default = true
-}
-
-variable "enable_alerts" {
-  type    = bool
-  default = true
-}
-
-variable "alert_notification_channels" {
-  type        = list(string)
-  default     = []
-  description = "List of notification channel IDs for alerts"
-}
-
-variable "log_sink_name" {
-  type    = string
-  default = ""
-}
-
-variable "log_sink_destination" {
-  type    = string
-  default = ""
-}
-
-variable "network_name" {
-  type    = string
-  default = "mega-prod-net"
-}
-
-variable "subnet_name" {
-  type    = string
-  default = "mega-prod-subnet"
-}
-
+# --- Network Configuration ---
 variable "subnet_cidr" {
   type    = string
   default = "10.40.0.0/16"
@@ -124,20 +81,14 @@ variable "services_secondary_range" {
   default = "10.42.0.0/16"
 }
 
-# Private networking for Cloud SQL / Redis (Cloud Run -> VPC Connector)
 variable "enable_private_networking" {
   type    = bool
   default = true
 }
 
-variable "vpc_connector_name" {
-  type    = string
-  default = ""
-}
-
 variable "vpc_connector_cidr" {
   type    = string
-  default = null
+  default = "10.8.0.0/28"
 }
 
 variable "cloud_run_vpc_egress" {
@@ -145,64 +96,70 @@ variable "cloud_run_vpc_egress" {
   default = "private-ranges-only"
 }
 
+# --- Artifact Registry ---
+variable "artifact_registry_location" {
+  type    = string
+  default = "us-central1"
+}
+
+variable "artifact_registry_repo" {
+  type        = string
+  description = "Optional Artifact Registry repository name override."
+  default     = ""
+}
+
+# --- Storage (GCS) ---
 variable "gcs_bucket" {
   type        = string
-  description = "GCS bucket name"
+  description = "Optional GCS bucket override. If empty, Terraform will derive a default name from app_name."
   default     = ""
 }
 
 variable "gcs_force_destroy" {
-  type        = bool
-  description = "Allow force deletion of bucket objects"
-  default     = false
+  type    = bool
+  default = false
 }
 
 variable "gcs_uniform_bucket_level_access" {
-  type        = bool
-  description = "Enable uniform bucket-level access"
-  default     = true
+  type    = bool
+  default = true
 }
 
+# --- Database (Cloud SQL) ---
 variable "cloud_sql_instance_name" {
   type        = string
-  description = "Cloud SQL instance name"
+  description = "Optional Cloud SQL instance name override."
   default     = ""
 }
 
 variable "cloud_sql_database_version" {
-  type        = string
-  description = "Cloud SQL database version"
-  default     = "POSTGRES_17"
+  type    = string
+  default = "POSTGRES_17"
 }
 
 variable "cloud_sql_tier" {
-  type        = string
-  description = "Cloud SQL instance tier"
-  default     = "db-f1-micro"  # smallest tier for this project
+  type    = string
+  default = "db-f1-micro"
 }
 
 variable "cloud_sql_disk_size" {
-  type        = number
-  description = "Cloud SQL disk size in GB"
-  default     = 10
+  type    = number
+  default = 10
 }
 
 variable "cloud_sql_disk_type" {
-  type        = string
-  description = "Cloud SQL disk type"
-  default     = "PD_SSD"
+  type    = string
+  default = "PD_SSD"
 }
 
 variable "cloud_sql_availability_type" {
-  type        = string
-  description = "Cloud SQL availability type"
-  default     = "ZONAL"
+  type    = string
+  default = "ZONAL"
 }
 
 variable "cloud_sql_private_ip_prefix_length" {
-  type        = number
-  description = "Prefix length for private services range"
-  default     = 16
+  type    = number
+  default = 16
 }
 
 variable "cloud_sql_enable_private_service_connection" {
@@ -217,7 +174,7 @@ variable "cloud_sql_enable_public_ip" {
 
 variable "cloud_sql_db_name" {
   type    = string
-  default = ""
+  default = "mega"
 }
 
 variable "cloud_sql_backup_enabled" {
@@ -230,9 +187,10 @@ variable "cloud_sql_deletion_protection" {
   default = true
 }
 
+# --- Redis (Memorystore) ---
 variable "redis_instance_name" {
   type        = string
-  description = "Memorystore instance name"
+  description = "Optional Redis instance name override."
   default     = ""
 }
 
@@ -251,9 +209,11 @@ variable "redis_transit_encryption_mode" {
   default = "DISABLED"
 }
 
+# --- Filestore ---
 variable "filestore_instance_name" {
-  type    = string
-  default = ""
+  type        = string
+  description = "Optional Filestore instance name override."
+  default     = ""
 }
 
 variable "filestore_tier" {
@@ -276,23 +236,15 @@ variable "filestore_reserved_ip_range" {
   default = null
 }
 
-# Cloud Run application variables
-variable "app_service_name" {
-  type        = string
-  description = "Cloud Run service name"
-  default     = ""
-}
-
+# --- Cloud Run: Backend App ---
 variable "app_image" {
-  type        = string
-  description = "Container image"
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "app_env" {
-  type        = map(string)
-  description = "Environment variables for Cloud Run"
-  default     = {}
+  type    = map(string)
+  default = {}
 }
 
 variable "app_cpu" {
@@ -320,73 +272,15 @@ variable "app_allow_unauth" {
   default = true
 }
 
-variable "storage_key" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "storage_secret_key" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "storage_bucket" {
-  type    = string
-  default = ""
-}
-
-variable "db_username" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "db_password" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "db_schema" {
-  type    = string
-  default = ""
-}
-
-variable "rails_master_key" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "rails_env" {
-  type    = string
-  default = ""
-}
-
-variable "ui_env" {
-  type    = string
-  default = ""
-}
-
-# Cloud Run UI variables
-variable "ui_service_name" {
-  type        = string
-  description = "Cloud Run service name for UI"
-  default     = ""
-}
-
+# --- Cloud Run: UI ---
 variable "ui_image" {
-  type        = string
-  description = "Container image for UI"
-  default     = ""
+  type    = string
+  default = ""
 }
 
 variable "ui_env_vars" {
-  type        = map(string)
-  description = "Environment variables for UI Cloud Run"
-  default     = {}
+  type    = map(string)
+  default = {}
 }
 
 variable "ui_cpu" {
@@ -414,20 +308,29 @@ variable "ui_allow_unauth" {
   default = true
 }
 
-# HTTPS Load Balancer & Routing Strategy (Milestone A)
-variable "enable_lb" {
-  type        = bool
-  description = "Whether to enable Global HTTPS Load Balancer"
-  default     = true
+# --- Cloud Run: Orion Server ---
+variable "orion_image" {
+  type    = string
+  default = ""
 }
 
-
-variable "lb_api_path_prefixes" {
-  type        = list(string)
-  description = "URL path prefixes to be routed to the backend service"
-  default     = ["/api/v1", "/info/lfs"]
+variable "orion_env_vars" {
+  type    = map(string)
+  default = {}
 }
 
+# --- Cloud Run: Campsite ---
+variable "campsite_image" {
+  type    = string
+  default = ""
+}
+
+variable "campsite_env_vars" {
+  type    = map(string)
+  default = {}
+}
+
+# --- IAM & Service Accounts ---
 variable "app_suffix" {
   type    = string
   default = ""
@@ -438,10 +341,80 @@ variable "iam_service_accounts" {
     display_name = optional(string)
     description  = optional(string)
     roles        = optional(list(string), [])
-    wi_bindings  = optional(list(object({
-      namespace                 = string
-      k8s_service_account_name  = string
+    wi_bindings = optional(list(object({
+      namespace                = string
+      k8s_service_account_name = string
     })), [])
   }))
-  default = {}
+  default     = {}
+  description = "Service accounts to create and their IAM roles"
+}
+
+# --- Monitoring & Logging ---
+variable "enable_logging" {
+  type    = bool
+  default = true
+}
+
+variable "enable_monitoring" {
+  type    = bool
+  default = true
+}
+
+variable "enable_alerts" {
+  type    = bool
+  default = true
+}
+
+variable "alert_notification_channels" {
+  type    = list(string)
+  default = []
+}
+
+variable "log_sink_name" {
+  type    = string
+  default = ""
+}
+
+variable "log_sink_destination" {
+  type    = string
+  default = ""
+}
+
+# --- Load Balancer Routing ---
+variable "lb_api_path_prefixes" {
+  type        = list(string)
+  description = "URL path prefixes to be routed to the backend service"
+  default     = ["/api/v1", "/info/lfs"]
+}
+
+# --- Secrets (Sensitive Variables) ---
+variable "db_username" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "db_password" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "rails_master_key" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "storage_key" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "storage_secret_key" {
+  type      = string
+  sensitive = true
+  default   = ""
 }

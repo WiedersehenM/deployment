@@ -3,23 +3,31 @@
 
 # Required project and domain
 project_id       = "infra-20250121-20260121-0235"
-base_domain      = "buck2hub.com" 
+app_name         = "mega"
+base_domain      = "buck2hub.com"           # used for certificates / app config
+
+# Region / zone (optional overrides)
+# region         = "us-central1"
+# zone           = "us-central1-b"
 
 # GCS (object storage)
 gcs_bucket                = "mega-prod-storage"
+gcs_force_destroy         = false
 
 # Artifact Registry (container images)
 enable_build_env           = true
 artifact_registry_repo     = "mega-prod"
 
-# Cloud Run backend application
-app_service_name          = "mega-backend"
-# Image path format: [LOCATION]-docker.pkg.dev/[PROJECT_ID]/[REPOSITORY_ID]/[IMAGE_NAME]:[TAG]
-app_image                 = "us-central1-docker.pkg.dev/your-gcp-project-id/mega-prod/mega-backend:mono-0.1.0-pre-release"
+# Cloud Run Images
+# Note: GitHub Actions will push images directly to ${app_name}-repo.
+app_image                 = "us-central1-docker.pkg.dev/your-gcp-project-id/mega-prod/mega:mono-0.1.0-pre-release"
+ui_image                  = "us-central1-docker.pkg.dev/your-gcp-project-id/mega-prod/mega:mega-ui-staging-0.1.0-pre-release"
+orion_image               = "us-central1-docker.pkg.dev/your-gcp-project-id/mega-prod/mega:orion-server-0.1.0-pre-release"
+campsite_image            = "us-central1-docker.pkg.dev/your-gcp-project-id/mega-prod/mega:campsite-0.1.0-pre-release"
+
 app_env = {
   RAILS_ENV                      = "production"
   RACK_ENV                       = "production"
-  # Optimized for SQLite on Cloud Run to avoid PoolTimedOut panic
   MEGA_DATABASE__DB_TYPE         = "sqlite"
   MEGA_DATABASE__DB_PATH         = "/tmp/mega.db"
   MEGA_DATABASE__MIN_CONNECTION  = "1"
@@ -27,16 +35,12 @@ app_env = {
   MEGA_DATABASE__ACQUIRE_TIMEOUT = "30"
 }
 
-# Cloud Run UI (Next.js SSR)
-ui_service_name           = "mega-ui"
-# Image path format: [LOCATION]-docker.pkg.dev/[PROJECT_ID]/[REPOSITORY_ID]/[IMAGE_NAME]:[TAG]
-ui_image                  = "us-central1-docker.pkg.dev/your-gcp-project-id/mega-prod/mega-ui:mega-ui-staging-0.1.0-pre-release"
 ui_env_vars = {
   APP_ENV = "staging"
 }
 
 # Database (Cloud SQL)
-cloud_sql_instance_name   = "mega-prod-db"
+cloud_sql_instance_name   = "mega-db"
 cloud_sql_db_name         = "mega"
 db_username               = "mega_user"
 db_password               = "your-prod-db-password"
@@ -49,9 +53,12 @@ cloud_sql_enable_public_ip                  = true
 vpc_connector_cidr                          = "10.8.0.0/28"
 
 # Redis (Memorystore)
-redis_instance_name       = "mega-prod-redis"
+redis_instance_name       = "mega-redis"
 redis_tier                = "BASIC"     # no HA
 redis_memory_size_gb      = 1
+
+# Filestore
+filestore_instance_name   = "mega-fs"
 
 # Rails secrets (sensitive)
 rails_master_key          = "your-prod-rails-master-key"

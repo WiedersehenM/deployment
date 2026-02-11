@@ -1,7 +1,19 @@
-variable "project_id" { type = string }
-variable "service_name" { type = string }
-variable "region" { type = string }
-variable "image" { type = string }
+variable "project_id" {
+  type = string
+}
+
+variable "service_name" {
+  type = string
+}
+
+variable "region" {
+  type = string
+}
+
+variable "image" {
+  type = string
+}
+
 variable "env_vars" {
   type    = map(string)
   default = {}
@@ -37,6 +49,11 @@ variable "allow_unauth" {
   default = true
 }
 
+variable "container_port" {
+  type    = number
+  default = 8080
+}
+
 variable "vpc_connector" {
   type    = string
   default = null
@@ -57,6 +74,9 @@ resource "google_cloud_run_service" "this" {
     spec {
       containers {
         image = var.image
+        ports {
+          container_port = var.container_port
+        }
         resources {
           limits = {
             cpu    = var.cpu
@@ -75,8 +95,8 @@ resource "google_cloud_run_service" "this" {
     metadata {
       annotations = merge(
         {
-        "autoscaling.knative.dev/minScale" = tostring(var.min_instances)
-        "autoscaling.knative.dev/maxScale" = tostring(var.max_instances)
+          "autoscaling.knative.dev/minScale" = tostring(var.min_instances)
+          "autoscaling.knative.dev/maxScale" = tostring(var.max_instances)
         },
         var.vpc_connector != null ? {
           "run.googleapis.com/vpc-access-connector" = var.vpc_connector

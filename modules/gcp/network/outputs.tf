@@ -21,16 +21,16 @@ output "subnetwork_name" {
 output "pods_secondary_range_name" {
   value = local.use_multi_subnets ? (
     length(google_compute_subnetwork.private) > 0 ? (
-      length(google_compute_subnetwork.private[0].secondary_ip_range) > 0 ? google_compute_subnetwork.private[0].secondary_ip_range[0].range_name : "${var.name_prefix}-pods"
-    ) : "${var.name_prefix}-pods"
+      length(google_compute_subnetwork.private[0].secondary_ip_range) > 0 ? google_compute_subnetwork.private[0].secondary_ip_range[0].range_name : "${var.app_name}-pods"
+    ) : "${var.app_name}-pods"
   ) : google_compute_subnetwork.this[0].secondary_ip_range[0].range_name
 }
 
 output "services_secondary_range_name" {
   value = local.use_multi_subnets ? (
     length(google_compute_subnetwork.private) > 0 ? (
-      length(google_compute_subnetwork.private[0].secondary_ip_range) > 1 ? google_compute_subnetwork.private[0].secondary_ip_range[1].range_name : "${var.name_prefix}-services"
-    ) : "${var.name_prefix}-services"
+      length(google_compute_subnetwork.private[0].secondary_ip_range) > 1 ? google_compute_subnetwork.private[0].secondary_ip_range[1].range_name : "${var.app_name}-services"
+    ) : "${var.app_name}-services"
   ) : google_compute_subnetwork.this[0].secondary_ip_range[1].range_name
 }
 

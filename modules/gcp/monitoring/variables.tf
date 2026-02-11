@@ -3,6 +3,11 @@ variable "project_id" {
   description = "GCP project ID"
 }
 
+variable "app_name" {
+  type        = string
+  description = "The name of the application, used as a prefix for all resources"
+}
+
 variable "enable_logging" {
   type        = bool
   default     = true
