@@ -19,7 +19,7 @@ locals {
 }
 
 
-
+/*
 # Network module
 module "network" {
   count  = local.enable_private_networking ? 1 : 0
@@ -293,8 +293,10 @@ module "lb_backends" {
   }
   lb_domain = var.base_domain
 }
+*/
 
 
+/*
 output "gcs_bucket_name" {
   value = module.gcs.bucket_name
 }
@@ -332,11 +334,6 @@ output "campsite_cloud_run_url" {
   value = module.campsite_cloud_run.url
 }
 
-output "project_id" {
-  description = "GCP project ID"
-  value       = var.project_id
-}
-
 output "monitoring_logging_api_enabled" {
   description = "Whether Logging/Monitoring APIs are enabled"
   value       = module.monitoring.logging_api_enabled && module.monitoring.monitoring_api_enabled
@@ -346,3 +343,97 @@ output "lb_ip" {
   description = "The public Anycast IP address of the load balancer"
   value       = var.enable_lb ? module.lb_backends[0].lb_ip : null
 }
+*/
+
+output "project_id" {
+  description = "GCP project ID"
+  value       = var.project_id
+}
+
+data "google_compute_network" "existing" {
+  name = local.network_name
+}
+
+data "google_compute_subnetwork" "existing" {
+  name   = local.subnet_name
+  region = var.region
+}
+
+resource "google_compute_instance" "orion_client_vm" {
+  name         = "${var.app_name}-orion-client-vm"
+  machine_type = "e2-standard-4"
+  zone         = var.zone
+
+  boot_disk {
+    initialize_params {
+      image = "debian-cloud/debian-12"
+      size  = 80
+    }
+  }
+
+  network_interface {
+    network    = data.google_compute_network.existing.self_link
+    subnetwork = data.google_compute_subnetwork.existing.self_link
+
+    access_config {
+    }
+  }
+
+  metadata_startup_script = <<-EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    exec > >(tee -a /var/log/orion-client-startup.log) 2>&1
+
+    export DEBIAN_FRONTEND=noninteractive
+
+    apt-get update
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      git \
+      git-lfs \
+      gettext-base \
+      netcat-openbsd \
+      procps \
+      zstd \
+      fuse3 \
+      libfuse3-3 \
+      libssl3 \
+      build-essential \
+      pkg-config \
+      cmake \
+      clang \
+      llvm-dev \
+      libclang-dev \
+      libssl-dev \
+      libfuse3-dev \
+      protobuf-compiler
+
+    echo "user_allow_other" >> /etc/fuse.conf || true
+
+    mkdir -p \
+      /opt/orion-client \
+      /opt/orion-client/src \
+      /data/scorpio/store \
+      /data/scorpio/antares/upper \
+      /data/scorpio/antares/cl \
+      /data/scorpio/antares/mnt \
+      /workspace/mount
+
+    if ! command -v rustc >/dev/null 2>&1; then
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    fi
+    export PATH="/root/.cargo/bin:${PATH}"
+
+    BUCK2_VERSION="2025-06-01"
+    ARCH="x86_64-unknown-linux-musl"
+    curl -fsSL -o /usr/local/bin/buck2.zst "https://github.com/facebook/buck2/releases/download/${BUCK2_VERSION}/buck2-${ARCH}.zst"
+    zstd -d /usr/local/bin/buck2.zst -o /usr/local/bin/buck2
+    chmod +x /usr/local/bin/buck2
+
+    cat >/opt/orion-client/install_from_tgz.sh <<'SCRIPT'
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    TGZ_PATH="${1:-/opt/orion-client/src.tgz}"
