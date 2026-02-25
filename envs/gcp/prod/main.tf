@@ -19,7 +19,7 @@ locals {
 }
 
 
-
+/*
 # Network module
 module "network" {
   count  = local.enable_private_networking ? 1 : 0
@@ -293,8 +293,10 @@ module "lb_backends" {
   }
   lb_domain = var.base_domain
 }
+*/
 
 
+/*
 output "gcs_bucket_name" {
   value = module.gcs.bucket_name
 }
@@ -332,11 +334,6 @@ output "campsite_cloud_run_url" {
   value = module.campsite_cloud_run.url
 }
 
-output "project_id" {
-  description = "GCP project ID"
-  value       = var.project_id
-}
-
 output "monitoring_logging_api_enabled" {
   description = "Whether Logging/Monitoring APIs are enabled"
   value       = module.monitoring.logging_api_enabled && module.monitoring.monitoring_api_enabled
@@ -345,4 +342,36 @@ output "monitoring_logging_api_enabled" {
 output "lb_ip" {
   description = "The public Anycast IP address of the load balancer"
   value       = var.enable_lb ? module.lb_backends[0].lb_ip : null
+}
+*/
+
+output "project_id" {
+  description = "GCP project ID"
+  value       = var.project_id
+}
+
+resource "google_compute_instance" "orion_client_vm" {
+  name         = "${var.app_name}-orion-client-vm"
+  machine_type = "e2-standard-4"
+  zone         = var.zone
+
+  boot_disk {
+    initialize_params {
+      image = "debian-cloud/debian-13"
+      size  = 80
+    }
+  }
+
+  network_interface {
+    network    = "buck2hub-vpc3"
+    subnetwork = "buck2hub-subnet"
+
+    access_config {}
+  }
+
+  metadata_startup_script = file("${path.module}/scripts/startup-orion-client.sh")
+
+  service_account {
+    scopes = ["cloud-platform"]
+  }
 }

@@ -10,6 +10,22 @@ variable "app_name" {
   default     = "mega"
 }
 
+variable "orion_client_server_ws" {
+  type        = string
+  description = "Orion Server WebSocket URL for orion worker (e.g. wss://orion.example.com/ws or ws://10.x.x.x:8004/ws)."
+}
+
+variable "orion_client_scorpio_base_url" {
+  type        = string
+  description = "Mono base URL for scorpio (e.g. https://git.example.com or http://10.x.x.x:8000)."
+}
+
+variable "orion_client_src_tgz_path" {
+  type        = string
+  description = "Path on VM to the uploaded orion client source tarball (.tgz). This file should be uploaded manually from Cloud Shell."
+  default     = "/opt/orion-client/src.tgz"
+}
+
 variable "region" {
   type    = string
   default = "us-central1"
@@ -18,7 +34,7 @@ variable "region" {
 variable "zone" {
   type        = string
   description = "GCP zone for zonal resources (e.g. Filestore)."
-  default     = ""
+  default     = "us-central1-a"
 }
 
 variable "base_domain" {
@@ -26,9 +42,6 @@ variable "base_domain" {
   description = "The FQDN for the application (e.g., buck2hub.com)"
   default     = "buck2hub.com"
 }
-
-
-
 
 variable "enable_lb" {
   type        = bool
