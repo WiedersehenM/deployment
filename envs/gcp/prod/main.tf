@@ -19,7 +19,6 @@ locals {
 }
 
 
-/*
 # Network module
 module "network" {
   count  = local.enable_private_networking ? 1 : 0
@@ -293,10 +292,7 @@ module "lb_backends" {
   }
   lb_domain = var.base_domain
 }
-*/
 
-
-/*
 output "gcs_bucket_name" {
   value = module.gcs.bucket_name
 }
@@ -343,7 +339,6 @@ output "lb_ip" {
   description = "The public Anycast IP address of the load balancer"
   value       = var.enable_lb ? module.lb_backends[0].lb_ip : null
 }
-*/
 
 output "project_id" {
   description = "GCP project ID"
