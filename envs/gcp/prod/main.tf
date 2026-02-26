@@ -14,7 +14,7 @@ locals {
   notesync_service_name = "${var.app_name}-notesync"
   vpc_connector_name    = "${var.app_name}-cr-conn"
 
-  enable_lb = var.enable_lb
+  enable_lb            = var.enable_lb
   cloud_run_vpc_egress = "all-traffic"
 }
 
@@ -345,26 +345,85 @@ output "project_id" {
   value       = var.project_id
 }
 
+output "orion_vm_public_ip" {
+  value = google_compute_instance.orion_client_vm.network_interface[0].access_config[0].nat_ip
+}
+
+output "orion_docker_vm_public_ip" {
+  value = google_compute_instance.orion_client_docker_vm.network_interface[0].access_config[0].nat_ip
+}
+
+output "orion_vm_private_key_pem" {
+  value     = tls_private_key.orion_vm_key.private_key_pem
+  sensitive = true
+}
+
+
+resource "tls_private_key" "orion_vm_key" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
 resource "google_compute_instance" "orion_client_vm" {
   name         = "${var.app_name}-orion-client-vm"
-  machine_type = "e2-standard-4"
+  machine_type = "e2-medium"
   zone         = var.zone
 
   boot_disk {
     initialize_params {
       image = "debian-cloud/debian-13"
-      size  = 80
+      size  = 20
     }
   }
 
   network_interface {
-    network    = "buck2hub-vpc3"
-    subnetwork = "buck2hub-subnet"
-
+    network    = local.network_name
+    subnetwork = local.subnet_name
     access_config {}
   }
 
-  metadata_startup_script = file("${path.module}/scripts/startup-orion-client.sh")
+  metadata = {
+    ssh-keys       = "orion:${tls_private_key.orion_vm_key.public_key_openssh}"
+    startup-script = file("${path.module}/scripts/startup-orion-client.sh")
+  }
+
+  connection {
+    type        = "ssh"
+    user        = "orion"
+    private_key = tls_private_key.orion_vm_key.private_key_pem
+    host        = self.network_interface[0].access_config[0].nat_ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/orion-config"
+    destination = "/home/orion/orion-runner"
+  }
+  service_account {
+    scopes = ["cloud-platform"]
+  }
+}
+
+resource "google_compute_instance" "orion_client_docker_vm" {
+  name         = "${var.app_name}-orion-client-docker-vm"
+  machine_type = "e2-medium"
+  zone         = var.zone
+
+  boot_disk {
+    initialize_params {
+      image = "debian-cloud/debian-13"
+      size  = 10
+    }
+  }
+
+  network_interface {
+    network    = local.network_name
+    subnetwork = local.subnet_name
+    access_config {}
+  }
+
+  metadata = {
+    ssh-keys = "orion:${tls_private_key.orion_vm_key.public_key_openssh}"
+  }
 
   service_account {
     scopes = ["cloud-platform"]

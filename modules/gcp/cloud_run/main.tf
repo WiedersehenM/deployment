@@ -75,6 +75,13 @@ resource "google_cloud_run_service" "this" {
   project  = var.project_id
   location = var.region
 
+  lifecycle {
+    ignore_changes = [
+      template[0].metadata[0].annotations["run.googleapis.com/client-name"],
+      template[0].metadata[0].annotations["run.googleapis.com/client-version"],
+    ]
+  }
+  
   template {
     spec {
       containers {

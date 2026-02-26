@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
+set -euxo pipefail
 
 exec > >(tee -a /var/log/orion-client-startup.log) 2>&1
 
@@ -25,7 +25,8 @@ apt-get install -y --no-install-recommends \
   libclang-dev \
   libssl-dev \
   libfuse3-dev \
-  protobuf-compiler
+  protobuf-compiler \
+  rsync
 
 echo "user_allow_other" >> /etc/fuse.conf || true
 
@@ -38,7 +39,11 @@ mkdir -p \
   /data/scorpio/antares/upper \
   /data/scorpio/antares/cl \
   /data/scorpio/antares/mnt \
-  /workspace/mount
+  /workspace/mount \
+  /home/orion/orion-runner
+
+chown -R orion:orion /home/orion/orion-runner
+chmod +x /home/orion/orion-runner/run.sh
 
 # Install Rust toolchain if missing
 if ! command -v rustc >/dev/null 2>&1; then
@@ -53,87 +58,47 @@ curl -fsSL -o /usr/local/bin/buck2.zst "https://github.com/facebook/buck2/releas
 zstd -d /usr/local/bin/buck2.zst -o /usr/local/bin/buck2
 chmod +x /usr/local/bin/buck2
 
-# Create wrapper that behaves like the container entrypoint (start embedded scorpio then orion)
-cat >/usr/local/bin/orion-worker-wrapper <<'WRAPPER'
-#!/usr/bin/env bash
-set -euo pipefail
 
-log() { echo "[orion-worker-wrapper] $*"; }
-
-: "${SERVER_WS:?SERVER_WS is required}"
-
-# Defaults aligned with mega/orion/entrypoint.sh
-: "${SCORPIO_API_BASE_URL:=http://127.0.0.1:2725}"
-: "${SCORPIO_HTTP_ADDR:=0.0.0.0:2725}"
-: "${ORION_WORKER_START_SCORPIO:=true}"
-
-: "${SCORPIO_STORE_PATH:=/data/scorpio/store}"
-: "${SCORPIO_WORKSPACE:=/workspace/mount}"
-
-mkdir -p "$SCORPIO_STORE_PATH" "$SCORPIO_WORKSPACE" \
-  /data/scorpio/antares/upper /data/scorpio/antares/cl /data/scorpio/antares/mnt
-
-if [ "$ORION_WORKER_START_SCORPIO" != "false" ] && [ "$ORION_WORKER_START_SCORPIO" != "0" ]; then
-  if [ ! -e /dev/fuse ]; then
-    log "ERROR: /dev/fuse not found; Scorpio requires FUSE"
-    exit 1
-  fi
-
-  log "Starting embedded scorpio..."
-  scorpio -c /etc/scorpio/scorpio.toml --http-addr "$SCORPIO_HTTP_ADDR" &
-  scorpio_pid=$!
-
-  # Wait for scorpio to listen
-  port="${SCORPIO_HTTP_ADDR##*:}"
-  for i in $(seq 1 60); do
-    if nc -z 127.0.0.1 "$port" >/dev/null 2>&1; then
-      break
-    fi
-    sleep 1
-  done
-
-  if ! nc -z 127.0.0.1 "$port" >/dev/null 2>&1; then
-    log "ERROR: scorpio did not become ready on 127.0.0.1:$port"
-    kill "$scorpio_pid" 2>/dev/null || true
-    exit 1
-  fi
-
-  log "Scorpio ready on 127.0.0.1:$port"
-  export SCORPIO_API_BASE_URL="http://127.0.0.1:$port"
-fi
-
-log "Starting orion worker..."
-exec orion
-WRAPPER
-
-chmod +x /usr/local/bin/orion-worker-wrapper
-
-# Write and enable systemd service for orion worker
-cat >/etc/systemd/system/orion-worker.service <<'EOF'
+cat <<EOF > /etc/systemd/system/orion-runner.service
 [Unit]
-Description=Orion Worker Service
-After=network-online.target
-Wants=network-online.target
+Description=Orion Runner and Scorpio Service (Managed by script)
+After=network.target
 
 [Service]
-Type=simple
-User=root
-Environment="SERVER_WS=wss://buck2hub-orion-504513835593.asia-east1.run.app/ws"
-Environment="SCORPIO_BASE_URL=https://buck2hub-mono-504513835593.asia-east1.run.app"
-Environment="SCORPIO_LFS_URL=https://buck2hub-mono-504513835593.asia-east1.run.app"
-Environment="SCORPIO_STORE_PATH=/data/scorpio/store"
-Environment="SCORPIO_WORKSPACE=/workspace/mount"
-Environment="ORION_WORKER_START_SCORPIO=true"
-Environment="SCORPIO_HTTP_ADDR=0.0.0.0:2725"
-ExecStart=/usr/local/bin/orion-worker-wrapper
-Restart=always
+# 指定运行服务的用户和组
+User=orion
+Group=orion
+
+# 加载 .env 文件中的环境变量
+WorkingDirectory=/home/orion/orion-runner
+
+# 启动命令：直接执行我们的主控脚本
+ExecStart=/bin/bash run.sh
+# 停止逻辑: systemd 会向 ExecStart 启动的进程（即 manage-orion.sh）发送 SIGTERM 信号。
+# 脚本内的 `trap` 命令会处理这个信号，优雅地关闭后台进程。
+# 我们不再需要一个独立的 ExecStop 脚本了。
+
+# 定义服务在失败时自动重启
+Restart=on-failure
 RestartSec=5
-LimitNOFILE=1048576
+StartLimitBurst=5
+StartLimitIntervalSec=60
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.cargo/bin"
+Environment="RUST_BACKTRACE=1"
+LimitNOFILE=10485760
+LimitNPROC=1048576
+
+# 脚本的标准输出和错误追加到文件（orion/scorpio 的日志在 run.sh 内单独重定向）
+StandardOutput=append:/var/log/orion-runner.log
+StandardError=append:/var/log/orion-runner.log
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload
-systemctl enable orion-worker.service
 
+systemctl daemon-reload
+systemctl enable orion-runner
+systemctl restart orion-runner
+
+echo "===== Orion startup finished ====="
